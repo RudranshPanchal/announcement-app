@@ -1,12 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { connectDB } from "../mongodb.server";
+import { useLoaderData } from "react-router";
 import Announcement from "../models/announcement.server"
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useState } from "react";
 import { useFetcher } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -15,7 +15,11 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
 
-  return null;
+  await connectDB();
+
+  const existingAnnouncement = await Announcement.findOne({});
+
+  return { announcement: existingAnnouncement?.text ?? "" };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -112,7 +116,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 
 export default function Index() {
-  const [announcement, setAnnouncement] = useState("");
+  // const [announcement, setAnnouncement] = useState("");
+  const { announcement: initialAnnouncement } = useLoaderData<typeof loader>();
+
+  const [announcement, setAnnouncement] = useState(initialAnnouncement);
   const fetcher = useFetcher<typeof action>();
 
   const saveAnnouncement = () => {
@@ -144,6 +151,7 @@ export default function Index() {
 
         <s-button
           onClick={saveAnnouncement}
+        // disabled={!announcement.trim()}
         >
           Save Announcement
         </s-button>
