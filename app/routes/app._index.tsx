@@ -83,6 +83,14 @@ export default function Index() {
     );
   };
 
+  const app = useAppBridge();
+
+  useEffect(() => {
+    if (fetcher.data?.success) {
+      app.toast.show("Announcement saved successfully!", { duration: 3000 });
+    }
+  }, [fetcher.data, app]);
+
   return (
     <s-page heading="Announcement Manager">
 
@@ -100,7 +108,8 @@ export default function Index() {
 
         <s-button
           onClick={saveAnnouncement}
-        // disabled={!announcement.trim()}
+          disabled={!announcement.trim()}
+          loading={fetcher.state === "submitting"}
         >
           Save Announcement
         </s-button>
