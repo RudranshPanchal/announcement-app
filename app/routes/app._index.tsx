@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { connectDB } from "../mongodb.server";
 import { useLoaderData } from "react-router";
 import Announcement from "../models/announcement.server"
+import { getAnnouncement, saveAnnouncement } from "../services/announcement.server";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -11,25 +12,22 @@ import { useFetcher } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { updateAnnouncementMetafield } from "app/services/metafield.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
 
-  await connectDB();
-
-  const existingAnnouncement = await Announcement.findOne({});
-
-  return { announcement: existingAnnouncement?.text ?? "" };
+  return {
+    announcement: await getAnnouncement(),
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
-  await connectDB();
-
   const formData = await request.formData();
 
-  const announcementText = formData.get("announcement")?.toString();
+  const announcementText = formData.get("announcement")?.toString() ?? "";
 
   if (typeof announcementText !== "string" || announcementText.trim() === "") {
     return {
@@ -42,58 +40,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   //   text: announcementText,
   // });
 
-  await Announcement.findOneAndUpdate(
-    {},
-    { text: announcementText },
-    {
-      upsert: true,
-      new: true,
-    }
-  );
+  await saveAnnouncement(announcementText);
 
-  const shopResponse = await admin.graphql(`
-    query {
-      shop {
-        id
-      }
-    }
-    `);
-
-  const shopData = await shopResponse.json();
-  const ownerId = shopData.data.shop.id;
-
-  const metafieldResponse = await admin.graphql(
-    `#graphql
-  mutation SaveAnnouncement($metafields: [MetafieldsSetInput!]!) {
-    metafieldsSet(metafields: $metafields) {
-      metafields {
-        id
-        namespace
-        key
-        value
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }`,
-    {
-      variables: {
-        metafields: [
-          {
-            ownerId: ownerId,
-            namespace: "announcement",
-            key: "banner_text",
-            type: "single_line_text_field",
-            value: announcementText,
-          },
-        ],
-      },
-    }
-  );
-
-  const metafieldResult = await metafieldResponse.json();
+  const metafieldResult = await updateAnnouncementMetafield(admin, announcementText);
 
   // console.log("METAFIELD RESULT", metafieldResult);
   // console.log("METAFIELD RESULT", metafieldResult.data.metafieldsSet.metafields);
